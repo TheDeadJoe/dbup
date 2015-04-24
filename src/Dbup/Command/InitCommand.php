@@ -51,19 +51,12 @@ This create <info>.dbup/properties.ini</info> and <info>./sql</info> directory a
         }
 
         $properties =<<<EOL
-;; pdo's constructor parameters
-;; see also http://jp1.php.net/manual/en/pdo.construct.php
-[pdo]
-dsn = "mysql:dbname=demo;host=localhost"
+[db]
+host = "127.0.0.1"
 user = "demo"
-password = "demo"
+pass = "demo"
+name = "demo"
 
-;; pdo option
-;; see also http://jp1.php.net/manual/en/pdo.construct.php
-[pdo_options]
-
-
-;; if set pathes, dbup will use this pathes instead of default ones.
 [path]
 ;sql = /etc/dbup/sql
 ;applied = /etc/dbup/applied

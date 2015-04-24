@@ -110,18 +110,18 @@ EOL
         $progress->start($output, count($statuses));
 
         foreach ($statuses as $status) {
-            $output->writeln('<info>applying... :</info>' .  $status->file->getFileName());
+            $output->writeln(PHP_EOL . '<info>applying... :</info>' .  $status->file->getFileName());
             if (!$isDryRun) {
                 $app->up($status->file);
-            }
-            $sql =file_get_contents($status->file->getPathName());
-            $output->writeln(<<<EOL
+            } else {
+				$sql = file_get_contents($status->file->getPathName());
+				$output->writeln(<<<EOL
 <comment>executed sql:</comment>
 $sql
 EOL
-            );
+				);
+			}
             $progress->advance();
-            $output->writeln(PHP_EOL);
         }
 
         $progress->finish();

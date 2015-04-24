@@ -11,7 +11,7 @@
 
 namespace Dbup;
 
-use Dbup\Database\PdoDatabase;
+use Dbup\Database\MysqlClient;
 use Symfony\Component\Console\Application as BaseApplication;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
@@ -26,8 +26,7 @@ class Application extends BaseApplication
     const VERSION = '0.5';
     /** sql file pattern */
     const PATTERN = '/^V(\d+?)__.*\.sql$/i';
-    /** @var null PDO  */
-    public $pdo = null;
+    public $db = null;
     public $baseDir = '.';
     public $sqlFilesDir;
     public $appliedFilesDir;
@@ -62,9 +61,9 @@ EOL;
         return new Finder();
     }
 
-    public function createPdo($dsn, $user, $password, $driverOptions)
+    public function createClient($host, $user, $pass, $name)
     {
-        $this->pdo = new PdoDatabase($dsn, $user, $password, $driverOptions);
+        $this->db = new MysqlClient($host, $user, $pass, $name);
     }
 
     public function parseIniFile($path)
@@ -81,22 +80,27 @@ EOL;
     public function setConfigFromIni($path)
     {
         $parse = $this->parseIniFile($path);
-        if (!isset($parse['pdo'])) {
-            throw new RuntimeException('cannot find [pdo] section in your properties.ini');
+
+        if (!isset($parse['db'])) {
+            throw new RuntimeException('cannot find [db] section in your properties.ini');
         }
-        $pdo = $parse['pdo'];
-        $dsn = (isset($pdo['dsn']))? $pdo['dsn']: '';
-        $user = (isset($pdo['user']))? $pdo['user']: '';
-        $password = (isset($pdo['password']))? $pdo['password']: '';
-        $driverOptions = (isset($parse['pdo_options']))? $parse['pdo_options']: [];
+
+        $db = $parse['db'];
+
+        $host = (isset($db['host']))? $db['host']: '';
+        $user = (isset($db['user']))? $db['user']: '';
+        $pass = (isset($db['pass']))? $db['pass']: '';
+        $name = (isset($db['name']))? $db['name']: '';
 
         if (isset($parse['path'])) {
+
             $path = $parse['path'];
+
             $this->sqlFilesDir = (isset($path['sql']))? $path['sql']: $this->sqlFilesDir;
             $this->appliedFilesDir = (isset($path['applied']))? $path['applied']: $this->appliedFilesDir;
         }
 
-        $this->createPdo($dsn, $user, $password, $driverOptions);
+        $this->createClient($host, $user, $pass, $name);
     }
 
     public function getHelp()
@@ -215,25 +219,9 @@ EOL;
     {
         $statuses = $this->getStatuses();
 
-        // search latest applied migration
-        $latest = '';
         foreach ($statuses as $status) {
-            if ($status->appliedAt !== "") {
-                $latest = $status->file->getFileName();
-            }
-        }
-
-        // make statuses without being applied
-        $candidates = [];
-        $isSkipped = ($latest === '')? false: true;
-        foreach ($statuses as $status) {
-            if (false === $isSkipped) {
-                $candidates[] = $status;
-            }
-            if($status->file->getFileName() !== $latest) {
-                continue;
-            } else {
-                $isSkipped = false;
+            if ($status->appliedAt === "") {
+				$candidates[] = $status;
             }
         }
 
@@ -246,26 +234,11 @@ EOL;
      */
     public function up($file)
     {
-        if (false === ($contents = file_get_contents($file->getPathName()))) {
+		if(!file_exists($file->getPathName())) {
             throw new RuntimeException($file->getPathName() . ' is not found.');
         }
-        $queries = explode(';', $contents);
-        try {
-            $dbh = $this->pdo->connection(true);
-            $dbh->beginTransaction();
-            foreach($queries as $query) {
-                $cleanedQuery = trim($query);
-                if ('' === $cleanedQuery) {
-                    continue;
-                }
-                $stmt = $dbh->prepare($cleanedQuery);
-                $stmt->execute();
-            }
-            $dbh->commit();
-        } catch(\PDOException $e) {
-            $dbh->rollBack();
-            throw new RuntimeException($e->getMessage() . PHP_EOL . $query);
-        }
+
+		$this->db->exec($file->getPathName());
 
         $this->copyToAppliedDir($file);
     }
